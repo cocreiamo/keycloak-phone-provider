@@ -192,7 +192,9 @@ public class PhoneUsernamePasswordForm extends UsernamePasswordForm implements A
       context.form().setAttribute(ATTEMPTED_PHONE_ACTIVATED, true)
           .setAttribute(ATTEMPTED_PHONE_NUMBER, phoneNumber);
       assemblyForm(context, context.form());
-      Response challengeResponse = challenge(context, disabledByBruteForceError(), disabledByBruteForceFieldError());
+      // Keycloak 26 chiede il codice dell'errore invece di dedurlo: è lo stesso che
+      // `getDisabledByBruteForceEventError` ha appena restituito.
+      Response challengeResponse = challenge(context, disabledByBruteForceError(bruteForceError), disabledByBruteForceFieldError());
       context.forceChallenge(challengeResponse);
       return true;
     }
