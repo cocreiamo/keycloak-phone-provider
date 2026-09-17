@@ -112,7 +112,12 @@ public class OpenapiSmsSenderService extends FullSmsSenderAbstractService {
                   "name",
                   "rogita",
                   "scopes",
-                  java.util.List.of("POST:" + URI.create(baseUrl).getHost() + "/IT-messages"),
+                  // `getAuthority` e non `getHost`: l'autorità porta anche la porta, ed è ciò
+                  // che l'adapter TypeScript manda — `new URL(...).host` in JavaScript è
+                  // `host:porta`. In produzione la porta non c'è e le due grafie coincidono, ma
+                  // farle divergere qui significherebbe che il gemello prova una lingua diversa
+                  // da quella che il fornitore sente.
+                  java.util.List.of("POST:" + URI.create(baseUrl).getAuthority() + "/IT-messages"),
                   "ttl",
                   TTL_SECONDS));
     } catch (Exception cause) {
