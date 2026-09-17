@@ -64,6 +64,8 @@
         <module>keycloak-sms-provider-aws-sns</module>
         <module>keycloak-sms-provider-bulksms</module>
         <module>keycloak-sms-provider-dummy</module>
+        <!-- Il corriere di rogita per l'Italia. -->
+        <module>keycloak-sms-provider-openapi</module>
         <module>keycloak-sms-provider-totalvoice</module>
         <module>keycloak-sms-provider-twilio</module>
         <module>keycloak-sms-provider-cloopen</module>
