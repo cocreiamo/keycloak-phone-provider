@@ -148,7 +148,7 @@ public class DefaultPhoneVerificationCodeProvider implements PhoneVerificationCo
     @Override
     public void validateCode(UserModel user, String phoneNumber, String code, TokenCodeType tokenCodeType) {
 
-        logger.info(String.format("valid %s , phone: %s, code: %s", tokenCodeType, phoneNumber, code));
+        logger.info(String.format("valid %s , phone: %s", tokenCodeType, phoneNumber));
 
         TokenCodeRepresentation tokenCode = ongoingProcess(phoneNumber, tokenCodeType);
         if (tokenCode == null)
