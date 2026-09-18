@@ -61,8 +61,15 @@ public class PhoneLoginAuthenticator implements Authenticator {
     String pending = context.getAuthenticationSession().getAuthNote(NOTE_PHONE_NUMBER);
 
     // «Cambia numero» torna al primo passo, e butta quello in attesa: senza, chi sbaglia una cifra
-    // resterebbe su una pagina che aspetta un codice che non arriverà mai.
-    if (form.containsKey("changeNumber") || pending == null) {
+    // resterebbe su una pagina che aspetta un codice che non arriverà mai, e il numero corretto
+    // verrebbe letto come il codice di quello sbagliato. Il numero vecchio resta scritto, da
+    // correggere invece che da riscrivere.
+    if (form.containsKey("changeNumber")) {
+      context.getAuthenticationSession().removeAuthNote(NOTE_PHONE_NUMBER);
+      context.challenge(numberForm(context, pending, null));
+      return;
+    }
+    if (pending == null) {
       askForCode(context, form.getFirst(SupportPhonePages.FIELD_PHONE_NUMBER));
       return;
     }

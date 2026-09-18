@@ -75,8 +75,12 @@ public class UpdatePhoneNumberRequiredAction implements RequiredActionProvider {
     MultivaluedMap<String, String> form = context.getHttpRequest().getDecodedFormParameters();
     String pending = context.getAuthenticationSession().getAuthNote(NOTE_PHONE_NUMBER);
 
-    if (form.containsKey("changeNumber") || pending == null) {
+    if (form.containsKey("changeNumber")) {
       context.getAuthenticationSession().removeAuthNote(NOTE_PHONE_NUMBER);
+      context.challenge(numberForm(context, pending, null));
+      return;
+    }
+    if (pending == null) {
       askForCode(context, form.getFirst(SupportPhonePages.FIELD_PHONE_NUMBER));
       return;
     }
