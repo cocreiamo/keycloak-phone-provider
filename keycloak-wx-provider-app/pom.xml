@@ -6,7 +6,7 @@
     <parent>
         <groupId>cc.coopersoft</groupId>
         <artifactId>keycloak-phone-provider-parent</artifactId>
-        <version>2.4.1-rogita.2</version>
+        <version>2.4.1-rogita.3</version>
     </parent>
 
     <artifactId>keycloak-wx-provider-app</artifactId>
