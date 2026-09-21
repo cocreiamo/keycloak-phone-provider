@@ -33,7 +33,8 @@ class OpenapiSmsSenderServiceTest {
       assertEquals(2, heard.size(), "prima si conia il token, poi si manda il messaggio");
 
       OpenapiTwin.Heard conio = heard.get(0);
-      assertEquals("/tokens", conio.path());
+      assertEquals(
+          "/token", conio.path(), "il percorso del conio è /token: /tokens risponde 401 in produzione");
       assertEquals(
           "Basic " + base64("prova@example.test:chiave-finta"),
           conio.authorization(),

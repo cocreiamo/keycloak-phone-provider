@@ -10,7 +10,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
@@ -23,9 +22,14 @@ import org.keycloak.util.JsonSerialization;
  * <p>La sua autenticazione è a <strong>due passi</strong>, e non è un dettaglio: la chiave
  * dell'account non si manda mai all'API dei messaggi — serve, in Basic, a coniare un Bearer che
  * scade. Lo scope del token deve nominare <strong>lo stesso host</strong> a cui poi si parla:
- * chiedere lo scope di produzione all'host di prova risponde «API not enabled». Verificato dal vivo
- * il 2026-09-16, e la stessa cosa la dice l'adapter TypeScript di rogita, che parla allo stesso
- * fornitore dal worker.
+ * chiedere lo scope di produzione all'host di prova risponde «API not enabled».
+ *
+ * <p><strong>Il dialetto è quello che il fornitore parla davvero, misurato il 2026-09-21 contro
+ * {@code oauth.openapi.it} e {@code sms.openapi.com}</strong> — e prima di allora non lo era: si
+ * coniava il token su {@code /tokens} (401 «AuthenticationRequired» in produzione, perché il percorso
+ * è {@code /token}) e si cercava la busta {@code data} attorno a una risposta che è piatta. Il
+ * gemello dei test parlava la stessa lingua sbagliata, quindi ogni prova era verde: un gemello copiato
+ * da una memoria prova la memoria. Il corpo dell'SMS (mittente, destinatario, testo) era giusto.
  *
  * <p>Il token si tiene finché vale, perché coniarne uno per messaggio raddoppia le chiamate e le
  * occasioni di sbagliare. Un 401 lo butta e lascia fallire l'invio: chi riprova è chi ha in mano il
@@ -109,8 +113,6 @@ public class OpenapiSmsSenderService extends FullSmsSenderAbstractService {
       body =
           JsonSerialization.writeValueAsString(
               java.util.Map.of(
-                  "name",
-                  "rogita",
                   "scopes",
                   // `getAuthority` e non `getHost`: l'autorità porta anche la porta, ed è ciò
                   // che l'adapter TypeScript manda — `new URL(...).host` in JavaScript è
@@ -124,7 +126,7 @@ public class OpenapiSmsSenderService extends FullSmsSenderAbstractService {
       throw new MessageSendException(500, "openapi_body_unwritable", cause.getMessage());
     }
     HttpRequest request =
-        HttpRequest.newBuilder(URI.create(oauthUrl + "/tokens"))
+        HttpRequest.newBuilder(URI.create(oauthUrl + "/token"))
             .header("authorization", "Basic " + credentials)
             .header("content-type", "application/json")
             .timeout(Duration.ofSeconds(20))
@@ -139,35 +141,42 @@ public class OpenapiSmsSenderService extends FullSmsSenderAbstractService {
     return token;
   }
 
-  /** Ciò che openapi.it mette attorno a ogni risposta: la busta si chiama {@code data}. */
+  /**
+   * La risposta del conio è piatta: {@code token} e {@code expire}, un UNIX timestamp in secondi,
+   * accanto a {@code success}, {@code message} e {@code error}. La busta {@code data} è dell'API dei
+   * messaggi, non di questa.
+   */
   private void minted(String raw) throws MessageSendException {
-    JsonNode data = read(raw).path("data");
-    String value = data.path("token").asText(null);
+    JsonNode answer = read(raw);
+    String value = answer.path("token").asText(null);
     if (value == null || value.isEmpty()) {
       throw new MessageSendException(502, "openapi_token_missing", "openapi.it ha risposto senza token");
     }
     this.token = value;
-    this.tokenExpiresAt = expiry(data.path("expireAt").asText(null));
+    this.tokenExpiresAt = expiry(answer.path("expire"));
   }
 
   /**
    * Senza una scadenza leggibile si tiene la propria: meglio coniarne uno in più che usarne uno
    * morto.
    */
-  private static Instant expiry(String declared) {
-    if (declared == null || declared.isEmpty()) return Instant.now().plusSeconds(TTL_SECONDS);
-    try {
-      return Instant.parse(declared);
-    } catch (DateTimeParseException ignored) {
-      return Instant.now().plusSeconds(TTL_SECONDS);
-    }
+  private static Instant expiry(JsonNode declared) {
+    if (declared.isNumber() && declared.asLong() > 0) return Instant.ofEpochSecond(declared.asLong());
+    return Instant.now().plusSeconds(TTL_SECONDS);
   }
 
-  /** Il codice che openapi.it mette nel corpo: è lui che dice cosa è andato storto, non lo status. */
+  /**
+   * Il codice che openapi.it mette nel corpo: è lui che dice cosa è andato storto, non lo status.
+   * L'API dei messaggi lo chiama {@code code}, quella del token {@code error}.
+   */
   private static String codeOf(String raw) {
     try {
-      JsonNode error = read(raw).path("error");
-      return error.isMissingNode() ? "openapi_unknown_error" : error.asText("openapi_unknown_error");
+      JsonNode answer = read(raw);
+      for (String field : new String[] {"code", "error"}) {
+        JsonNode found = answer.path(field);
+        if (!found.isMissingNode() && !found.isNull()) return found.asText("openapi_unknown_error");
+      }
+      return "openapi_unknown_error";
     } catch (MessageSendException ignored) {
       return "openapi_unreadable_error";
     }
