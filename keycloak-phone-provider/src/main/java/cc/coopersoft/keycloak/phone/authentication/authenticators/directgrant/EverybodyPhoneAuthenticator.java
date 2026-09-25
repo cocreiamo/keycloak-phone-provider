@@ -41,9 +41,10 @@ public class EverybodyPhoneAuthenticator extends BaseDirectGrantAuthenticator {
   private void authToUser(AuthenticationFlowContext context, String phoneNumber, String code) {
     PhoneVerificationCodeProvider phoneVerificationCodeProvider = context.getSession()
         .getProvider(PhoneVerificationCodeProvider.class);
-    TokenCodeRepresentation tokenCode = phoneVerificationCodeProvider.ongoingProcess(phoneNumber, TokenCodeType.AUTH);
+    TokenCodeRepresentation tokenCode =
+        phoneVerificationCodeProvider.ongoingProcess(phoneNumber, TokenCodeType.AUTH, code);
 
-    if (tokenCode == null || !tokenCode.getCode().equals(code)) {
+    if (tokenCode == null) {
       invalidCredentials(context);
       return;
     }

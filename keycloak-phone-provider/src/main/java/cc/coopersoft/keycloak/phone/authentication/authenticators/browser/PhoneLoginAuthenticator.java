@@ -129,7 +129,8 @@ public class PhoneLoginAuthenticator implements Authenticator {
           numberForm(context, phoneNumber, SupportPhonePages.Errors.NO_PROCESS.message()));
       return;
     }
-    if (!ongoing.getCode().equals(code)) {
+    TokenCodeRepresentation matched = codes.ongoingProcess(phoneNumber, TokenCodeType.AUTH, code);
+    if (matched == null) {
       // **Si risponde di no, non si alza**: il tentativo sbagliato deve restare contato, e una
       // pagina d'errore lascia riprovare senza rimandare un SMS.
       context.failureChallenge(
@@ -146,7 +147,7 @@ public class PhoneLoginAuthenticator implements Authenticator {
     }
 
     context.setUser(user);
-    codes.tokenValidated(user, phoneNumber, ongoing.getId(), false);
+    codes.tokenValidated(user, phoneNumber, matched.getId(), false);
     context.getAuthenticationSession().removeAuthNote(NOTE_PHONE_NUMBER);
     context.success();
   }

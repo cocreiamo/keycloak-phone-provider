@@ -140,13 +140,15 @@ public class UpdatePhoneNumberRequiredAction implements RequiredActionProvider {
           numberForm(context, phoneNumber, SupportPhonePages.Errors.NO_PROCESS.message()));
       return;
     }
-    if (Validation.isBlank(code) || !ongoing.getCode().equals(code)) {
+    TokenCodeRepresentation matched =
+        Validation.isBlank(code) ? null : codes.ongoingProcess(phoneNumber, TokenCodeType.VERIFY, code);
+    if (matched == null) {
       context.challenge(
           codeForm(context, phoneNumber, 0, SupportPhonePages.Errors.NOT_MATCH.message()));
       return;
     }
 
-    codes.tokenValidated(context.getUser(), phoneNumber, ongoing.getId(), false);
+    codes.tokenValidated(context.getUser(), phoneNumber, matched.getId(), false);
     context.getAuthenticationSession().removeAuthNote(NOTE_PHONE_NUMBER);
     context.success();
   }

@@ -7,7 +7,17 @@ import org.keycloak.provider.Provider;
 
 public interface PhoneVerificationCodeProvider extends Provider {
 
+    /** Il codice in corso più recente, o null: dice se c'è un processo, non quale codice vale. */
     TokenCodeRepresentation ongoingProcess(String phoneNumber, TokenCodeType tokenCodeType);
+
+    /** Il codice in corso uguale a {@code code}, o null: i codici in corso di un numero sono un insieme. */
+    TokenCodeRepresentation ongoingProcess(String phoneNumber, TokenCodeType tokenCodeType, String code);
+
+    /**
+     * Serializza i processi di uno stesso numero fino alla fine della transazione: chi arriva dopo
+     * vede il codice di chi è arrivato prima, invece di mandarne un secondo.
+     */
+    void serializeProcess(String phoneNumber, TokenCodeType tokenCodeType);
 
     boolean isAbusing(String phoneNumber, TokenCodeType tokenCodeType,String sourceAddr ,int sourceHourMaximum,int targetHourMaximum);
 

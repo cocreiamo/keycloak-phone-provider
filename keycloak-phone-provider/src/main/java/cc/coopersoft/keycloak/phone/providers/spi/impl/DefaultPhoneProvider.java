@@ -123,6 +123,7 @@ public class DefaultPhoneProvider implements PhoneProvider {
             throw new ForbiddenException("You requested the maximum number of messages the last hour");
         }
 
+        getTokenCodeService().serializeProcess(phoneNumber, type);
         TokenCodeRepresentation ongoing = getTokenCodeService().ongoingProcess(phoneNumber, type);
         if (ongoing != null) {
             logger.info(String.format("No need of sending a new %s code for %s", type.label, phoneNumber));

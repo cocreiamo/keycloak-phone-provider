@@ -29,6 +29,7 @@ import jakarta.ws.rs.ForbiddenException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -54,34 +55,61 @@ public class DefaultPhoneVerificationCodeProvider implements PhoneVerificationCo
 
     @Override
     public TokenCodeRepresentation ongoingProcess(String phoneNumber, TokenCodeType tokenCodeType) {
+        return OngoingCodes.newest(ongoing(phoneNumber, tokenCodeType)).map(this::represented).orElse(null);
+    }
 
+    @Override
+    public TokenCodeRepresentation ongoingProcess(String phoneNumber, TokenCodeType tokenCodeType, String code) {
+        return OngoingCodes.matching(ongoing(phoneNumber, tokenCodeType), code).map(this::represented).orElse(null);
+    }
+
+    /**
+     * **Il controllo «c'è già un codice?» e il salvataggio stanno ai due capi dell'invio dell'SMS**, che
+     * dura secondi, e la transazione si chiude a fine richiesta: senza un lucchetto due richieste
+     * vicine salvavano un codice ciascuna (staging, 2026-09-25). Un advisory lock di transazione sul
+     * numero le mette in fila; si libera da sé al commit o al rollback. È di Postgres, l'unico database
+     * su cui gira questo Keycloak: su un altro il lucchetto non c'è, e resta la lettura tollerante di
+     * {@link OngoingCodes}.
+     */
+    @Override
+    public void serializeProcess(String phoneNumber, TokenCodeType tokenCodeType) {
+        String key = getRealm().getId() + "|" + tokenCodeType.name() + "|" + phoneNumber;
+        try {
+            getEntityManager()
+                    .createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))")
+                    .setParameter(1, key)
+                    .getSingleResult();
+        } catch (RuntimeException e) {
+            logger.warn("Advisory lock not available, relying on tolerant reads: " + e.getMessage());
+        }
+    }
+
+    private List<TokenCode> ongoing(String phoneNumber, TokenCodeType tokenCodeType) {
         try {
             String resultPhoneNumber = Utils.canonicalizePhoneNumber(session, phoneNumber);
-            TokenCode entity = getEntityManager()
+            return getEntityManager()
                     .createNamedQuery("ongoingProcess", TokenCode.class)
                     .setParameter("realmId", getRealm().getId())
                     .setParameter("phoneNumber", resultPhoneNumber)
                     .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                     .setParameter("type", tokenCodeType.name())
-                    .getSingleResult();
-
-            TokenCodeRepresentation tokenCodeRepresentation = new TokenCodeRepresentation();
-
-            tokenCodeRepresentation.setId(entity.getId());
-            tokenCodeRepresentation.setPhoneNumber(entity.getPhoneNumber());
-            tokenCodeRepresentation.setCode(entity.getCode());
-            tokenCodeRepresentation.setType(entity.getType());
-            tokenCodeRepresentation.setCreatedAt(entity.getCreatedAt());
-            tokenCodeRepresentation.setExpiresAt(entity.getExpiresAt());
-            tokenCodeRepresentation.setConfirmed(entity.getConfirmed());
-
-            return tokenCodeRepresentation;
-        } catch (NoResultException e) {
-            return null;
+                    .getResultList();
         } catch (PhoneNumberInvalidException e) {
             logger.warn("Invalid number: " + phoneNumber);
             throw new BadRequestException("Phone number is invalid");
         }
+    }
+
+    private TokenCodeRepresentation represented(TokenCode entity) {
+        TokenCodeRepresentation tokenCodeRepresentation = new TokenCodeRepresentation();
+        tokenCodeRepresentation.setId(entity.getId());
+        tokenCodeRepresentation.setPhoneNumber(entity.getPhoneNumber());
+        tokenCodeRepresentation.setCode(entity.getCode());
+        tokenCodeRepresentation.setType(entity.getType());
+        tokenCodeRepresentation.setCreatedAt(entity.getCreatedAt());
+        tokenCodeRepresentation.setExpiresAt(entity.getExpiresAt());
+        tokenCodeRepresentation.setConfirmed(entity.getConfirmed());
+        return tokenCodeRepresentation;
     }
 
     @Override
@@ -150,11 +178,11 @@ public class DefaultPhoneVerificationCodeProvider implements PhoneVerificationCo
 
         logger.info(String.format("valid %s , phone: %s", tokenCodeType, phoneNumber));
 
-        TokenCodeRepresentation tokenCode = ongoingProcess(phoneNumber, tokenCodeType);
-        if (tokenCode == null)
+        if (ongoingProcess(phoneNumber, tokenCodeType) == null)
             throw new BadRequestException(String.format("There is no valid ongoing %s process", tokenCodeType.label));
 
-        if (!tokenCode.getCode().equals(code))
+        TokenCodeRepresentation tokenCode = ongoingProcess(phoneNumber, tokenCodeType, code);
+        if (tokenCode == null)
             throw new ForbiddenException("Code does not match with expected value");
 
         logger.info(String.format("User %s correctly answered the %s code", user.getId(), tokenCodeType.label));
