@@ -7,7 +7,7 @@
     <groupId>cc.coopersoft</groupId>
     <artifactId>keycloak-phone-provider-parent</artifactId>
     <packaging>pom</packaging>
-    <version>2.4.1-rogita.7</version>
+    <version>2.4.1-rogita.8</version>
 
     <name>keycloak-phone-provider</name>
     <description>keycloak phone support.</description>
@@ -46,7 +46,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <java.version>21</java.version>
-        <version.keycloak>26.5.5</version.keycloak>
+        <version.keycloak>26.7.4</version.keycloak>
         <version.lombok>1.18.34</version.lombok>
     </properties>
 
@@ -76,6 +76,18 @@
         <module>keycloak-wx-provider-app</module>
         <module>keycloak-sms-provider-whatsapp</module>
     </modules>
+
+    <!-- commons-io arriva da resteasy-jaxrs 3.15.6 alla 2.10, con CVE-2024-47554 (rogita,
+         .trivyignore): la si fissa a una versione curata invece di ereditarla. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.22.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
